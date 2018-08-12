@@ -1,5 +1,5 @@
 # -------------------
-# PYWR MODEL - CDMX
+# PYWR MODEL - CDMX (Updated 8/12)
 # -------------------
 
 from pywr.core import Model, Input, Output, Link, Storage
