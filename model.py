@@ -254,7 +254,7 @@ for node in non_storage:
                 non_storage[node].max_flow = max_flow
                 non_storage[node].min_flow = min_flow
 
-# temporary fix to OA data
+# temporary fix to OpenAgua data
 non_storage[-27326].max_flow = ArrayIndexedParameter(model, cutzamala_supply)
 non_storage[-27326].min_flow = ArrayIndexedParameter(model, cutzamala_supply)
 
