@@ -1,5 +1,5 @@
 # -------------------
-# PYWR MODEL - CDMX (Updated 8/12)
+# PYWR MODEL - CDMX
 # -------------------
 
 from pywr.core import Model, Input, Output, Link, Storage
@@ -9,17 +9,10 @@ import json
 import ast
 import pandas as pd
 import xlrd
-import numpy as np
 
-# ----------------- EXTERNAL  -----------------------
+# ----------------- PROJECT LEVEL ROUTINES -----------------------
 
-# cutzamala supply data (correction for bug in OA)
-sheet = xlrd.open_workbook('Cutzamala Supply.xlsx')
-sheet = sheet.sheet_by_index(0)
-cutzamala_supply = sheet.col_values(1)
-
-# ----------------- CREATE MODEL -----------------------
-
+# Load data
 with open('Corrected Shape Data Update.json') as f:
     data = json.load(f)
     nodes_list = data["network"]["nodes"]
@@ -27,8 +20,25 @@ with open('Corrected Shape Data Update.json') as f:
     template = data['template']
 
 # TODO: link option and scenario to call routine?
+# Define option and scenarios
 option = "Baseline"
 scenario = "Simulation - No Restrictions"
+
+# Define OA link types used in model
+link_types = ['Virtual Link', 'Virtual Link - Bidirectional', 'Virtual Groundwater Link', 'Conveyance']
+
+# Define OA node types used in model
+storage_types = ['Storage Tank']
+input_types = ['Misc Source', 'Surface Water', 'Groundwater']
+output_types = ['Outflow Node', 'Urban Demand', 'General Demand']
+misc_types = ['Lifting Station', 'Pumping Plant', 'Treatment Plant', 'Diversion Reservoir', 'Junction']
+
+# cutzamala supply data (correction for bug in OA)
+sheet = xlrd.open_workbook('Cutzamala Supply.xlsx')
+sheet = sheet.sheet_by_index(0)
+cutzamala_supply = sheet.col_values(1)
+
+# ----------------- CREATE MODEL -----------------------
 
 # TODO: End time needs to be last day of final model year, not first day of next year
 for scenarios in data['network']['scenarios']:
@@ -61,14 +71,12 @@ for node in nodes_list:
         'attributes': node['attributes']
     }
 
-
 # create link dictionaries by name and id
 # create pywr links dictionary with format ["name" = pywr type (Link) + 'name']
-# add number of connections in and out to each node in node_lookup_id
+# define number of in and out connections for each node in node_lookup_id
 
 link_lookup = {}
 link_lookup_id = {}
-link_types = ['Virtual Link', 'Virtual Link - Bidirectional', 'Virtual Groundwater Link', 'Conveyance']
 pywr_links = {}
 
 for link in links_list:
@@ -112,12 +120,7 @@ for node in rogue_nodes:
 # create pywr nodes dictionary with format ["name" = pywr type + 'name']
 # for storage and non storage
 storage = {}
-storage_types = ['Storage Tank']
-
 non_storage = {}
-input_types = ['Misc Source', 'Surface Water', 'Groundwater']
-output_types = ['Outflow Node', 'Urban Demand', 'General Demand']
-misc_types = ['Lifting Station', 'Pumping Plant', 'Treatment Plant', 'Diversion Reservoir', 'Junction']
 non_storage_types = input_types + output_types + misc_types
 
 # TODO: change looping variable notation
@@ -139,7 +142,6 @@ for node_id, node_trait in node_lookup_id.items():
 
 # create network connections
 # must assign connection slots for storage
-# TODO: change looping variable notation
 
 for link_id, link_trait in link_lookup_id.items():
     up_node = link_trait['node_1_id']
@@ -297,8 +299,9 @@ assign_recorders(link_lookup_id, link_types, pywr_links)
 # run model
 model.run()
 
-# save results to dataframe by resource
+# -------------------- ORGANIZE RESULTS --------------------
 
+# save results to dataframe by resource
 def get_results(lookup, resource_class):
     dataframes = []
     for resource_id in lookup:
@@ -327,13 +330,3 @@ for node, attributes in node_lookup_id.items():
             observed.append(obsdel)
 
 observed = pd.concat(observed, axis=1)
-
-
-
-# demand_data = pd.DataFrame(node_lookup_id[-27314]['attributes'][6]['data'], columns=[node_lookup_id[-27314]['name']])
-# for node in node_lookup_id:
-#     for att in node_lookup_id[node]['attributes']:
-#         if att.get('data_type') == "Demand" and node_lookup_id[node]['name'] != 'Alvaro Obregon':
-#             demand_data[node_lookup_id[node]['name']] = att.get('data')
-
-print('hello')
