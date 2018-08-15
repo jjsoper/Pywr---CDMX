@@ -5,10 +5,13 @@
 from pywr.core import Model, Input, Output, Link, Storage
 from pywr.parameters.parameters import ArrayIndexedParameter
 from pywr.recorders import NumpyArrayNodeRecorder
+from datetime import datetime
+from warnings import warn
 import json
 import ast
 import pandas as pd
 import xlrd
+
 
 # ----------------- PROJECT LEVEL ROUTINES -----------------------
 
@@ -44,8 +47,8 @@ cutzamala_supply = sheet.col_values(1)
 for scenarios in data['network']['scenarios']:
     if scenarios['name'] == option:
         meta = scenarios
-        start = meta['start_time']
-        # end = meta['end_time']
+        start = datetime.strptime(meta['start_time'], '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
+        # end = datetime.strptime(meta['end_time'], '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d')
         end = '2015-12-31'
         if meta['time_step'] == 'day':
             ts = 1
@@ -188,39 +191,52 @@ scenario_data = select_scenario(option, scenario)
 
 # fill in relevant data based on resource lookup dictionary and resource id
 # operates under assumption that all timeseries data comes in as cms / need to convert to Mcm/day
+resource_errors = []
 def populate_data(lookup, resource):
     for att in lookup[resource]['attributes']:
-        for att_id in scenario_data['scenario']:
-            if att['id'] == att_id['resource_attr_id']:
-                att['data_type'] = find(lookup[resource]['type'], att['attr_id'])
-                if ast.literal_eval(att_id['value']['metadata'])['use_function'] == 'Y':
-                    att['data'] = str(ast.literal_eval(att_id['value']['metadata'])['function'])
-                else:
-                    try:
-                        data_list = list(ast.literal_eval(att_id['value']['value'])['0'].values())
-                        data_list = [i * 0.0864 for i in data_list]
-                        att['data'] = data_list
-                    except:
-                        pass
-        for att_id in scenario_data['option']:
-            if att['id'] == att_id['resource_attr_id'] and 'data_type' not in att:
-                att['data_type'] = find(lookup[resource]['type'], att['attr_id'])
-                if ast.literal_eval(att_id['value']['metadata'])['use_function'] == 'Y':
-                    att['data'] = ast.literal_eval(att_id['value']['metadata'])['function']
-                else:
-                    try:
-                        data_list = list(ast.literal_eval(att_id['value']['value'])['0'].values())
-                        data_list = [i * 0.0864 for i in data_list]
-                        att['data'] = data_list
-                    except:
-                        pass
-
+        if scenario_data.get('scenario') != None:
+            for att_id in scenario_data['scenario']:
+                if att['id'] == att_id['resource_attr_id']:
+                    att['data_type'] = find(lookup[resource]['type'], att['attr_id'])
+                    if ast.literal_eval(att_id['value']['metadata'])['use_function'] == 'Y':
+                        att['data'] = str(ast.literal_eval(att_id['value']['metadata'])['function'])
+                    else:
+                        try:
+                            data_list = list(ast.literal_eval(att_id['value']['value'])['0'].values())
+                            data_list = [i * 0.0864 for i in data_list]
+                            att['data'] = data_list
+                            keys_list = list(ast.literal_eval(att_id['value']['value'])['0'].keys())
+                            if start not in keys_list[0] and end not in keys_list[len(keys_list) - 1]:
+                                resource_errors.append(lookup[resource]['name'])
+                                # warn("Error in Timeseries data inputs: {0} data out of bounds".format(lookup[resource]['name']))
+                        except:
+                            pass
+        if scenario_data.get('option') != None:
+            for att_id in scenario_data['option']:
+                if att['id'] == att_id['resource_attr_id'] and 'data_type' not in att:
+                    att['data_type'] = find(lookup[resource]['type'], att['attr_id'])
+                    if ast.literal_eval(att_id['value']['metadata'])['use_function'] == 'Y':
+                        att['data'] = ast.literal_eval(att_id['value']['metadata'])['function']
+                    else:
+                        try:
+                            data_list = list(ast.literal_eval(att_id['value']['value'])['0'].values())
+                            data_list = [i * 0.0864 for i in data_list]
+                            att['data'] = data_list
+                            keys_list = list(ast.literal_eval(att_id['value']['value'])['0'].keys())
+                            if start not in keys_list[0] and end not in keys_list[len(keys_list) - 1]:
+                                resource_errors.append(lookup[resource]['name'])
+                                # warn("Error in Timeseries data inputs: {0} data out of bounds".format(lookup[resource]['name']))
+                        except:
+                            pass
 
 # populate node_lookup_id with data types and values from specified scenarios
 for node in node_lookup_id:
     populate_data(node_lookup_id, node)
 for link in link_lookup_id:
     populate_data(link_lookup_id, link)
+# raise warning if input data timeseries doesn't match model timestepper
+if resource_errors:
+    warn("Error in data inputs: {0} incorrect timeseries sequence".format(resource_errors))
 
 # TODO: remove unpopulated resource attributes from node_lookup_id
 
@@ -299,7 +315,7 @@ assign_recorders(link_lookup_id, link_types, pywr_links)
 # run model
 model.run()
 
-# -------------------- ORGANIZE RESULTS --------------------
+# -------------------- ORGANIZE RESULTS (WORK IN PROGRESS) --------------------
 
 # save results to dataframe by resource
 def get_results(lookup, resource_class):
@@ -328,5 +344,4 @@ for node, attributes in node_lookup_id.items():
             obsdel = pd.DataFrame(attribute['data'])
             obsdel.columns = [node_lookup_id[node]['name']]
             observed.append(obsdel)
-
 observed = pd.concat(observed, axis=1)
