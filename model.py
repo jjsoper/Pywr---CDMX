@@ -16,7 +16,7 @@ import xlrd
 # ----------------- PROJECT LEVEL ROUTINES -----------------------
 
 # Load data
-with open('Corrected Shape Data Update.json') as f:
+with open('Corrected Shape.json') as f:
     data = json.load(f)
     nodes_list = data["network"]["nodes"]
     links_list = data["network"]["links"]
@@ -39,7 +39,7 @@ misc_types = ['Lifting Station', 'Pumping Plant', 'Treatment Plant', 'Diversion 
 # cutzamala supply data (correction for bug in OA)
 sheet = xlrd.open_workbook('Cutzamala Supply.xlsx')
 sheet = sheet.sheet_by_index(0)
-cutzamala_supply = sheet.col_values(1)
+cutzamala_supply = sheet.col_values(0)
 
 # ----------------- CREATE MODEL -----------------------
 
@@ -208,7 +208,6 @@ def populate_data(lookup, resource):
                             keys_list = list(ast.literal_eval(att_id['value']['value'])['0'].keys())
                             if start not in keys_list[0] and end not in keys_list[len(keys_list) - 1]:
                                 resource_errors.append(lookup[resource]['name'])
-                                # warn("Error in Timeseries data inputs: {0} data out of bounds".format(lookup[resource]['name']))
                         except:
                             pass
         if scenario_data.get('option') != None:
@@ -225,7 +224,6 @@ def populate_data(lookup, resource):
                             keys_list = list(ast.literal_eval(att_id['value']['value'])['0'].keys())
                             if start not in keys_list[0] and end not in keys_list[len(keys_list) - 1]:
                                 resource_errors.append(lookup[resource]['name'])
-                                # warn("Error in Timeseries data inputs: {0} data out of bounds".format(lookup[resource]['name']))
                         except:
                             pass
 
