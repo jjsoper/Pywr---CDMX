@@ -4,14 +4,13 @@
 
 from pywr.core import Model, Input, Output, Link, Storage
 from pywr.parameters.parameters import ArrayIndexedParameter
-from pywr.recorders import NumpyArrayNodeRecorder
+from pywr.recorders.recorders import NumpyArrayNodeRecorder, CSVRecorder, NumpyArrayStorageRecorder
 from datetime import datetime
 from warnings import warn
 import json
 import ast
 import pandas as pd
 import xlrd
-
 
 # ----------------- PROJECT LEVEL ROUTINES -----------------------
 
@@ -121,12 +120,14 @@ for node in rogue_nodes:
 
 
 # create pywr nodes dictionary with format ["name" = pywr type + 'name']
-# for storage and non storage
+# separate non_storage dicts for greater flexibility with recording model results
 storage = {}
 non_storage = {}
+non_storage_outputs = {}
+non_storage_junctions = {}
+non_storage_inputs = {}
 non_storage_types = input_types + output_types + misc_types
 
-# TODO: change looping variable notation
 for node_id, node_trait in node_lookup_id.items():
     types = node_trait['type']
     name = node_trait['name']
@@ -135,13 +136,19 @@ for node_id, node_trait in node_lookup_id.items():
         num_inputs = node_trait['connect_out']
         storage[node_id] = Storage(model, name=name, num_outputs=num_outputs, num_inputs=num_inputs)
     elif types in output_types:
-        non_storage[node_id] = Output(model, name=name)
+        non_storage_outputs[node_id] = Output(model, name=name)
     elif types in misc_types:
-        non_storage[node_id] = Link(model, name=name)
+        non_storage_junctions[node_id] = Link(model, name=name)
     elif types in input_types:
-        non_storage[node_id] = Input(model, name=name)
+        non_storage_inputs[node_id] = Input(model, name=name)
     else:
         raise Exception("Oops, missed a type!")
+
+non_storage = {**non_storage_inputs, **non_storage_outputs, **non_storage_junctions}
+
+# Generate dict of pywr network components
+pywr_components = {"inputs": non_storage_inputs, "outputs": non_storage_outputs, "junctions": non_storage_junctions,
+                    "storage": storage, "links": pywr_links}
 
 # create network connections
 # must assign connection slots for storage
@@ -299,47 +306,54 @@ for node in node_lookup_id:
         if non_storage[node].max_flow == float('inf'):
             non_storage[node].max_flow = 0
 
-# Assign recorders for all nodes and links
 
-def assign_recorders(lookup, resource_class, pywr_type):
-    for resource_id in lookup:
-        if lookup[resource_id]['type'] in resource_class:
-            lookup[resource_id]['recorder'] = NumpyArrayNodeRecorder(model, pywr_type[resource_id])
+# -------------------- ASSIGN RECORDERS --------------------
+# CSV recorders: nodes= must be an iterable, name= used to create multiple csv recorders
+for node_set, nodes in pywr_components.items():
+    CSVRecorder(model, csvfile='C:/Users/Josh Soper/Documents/Mexico/Summer 2018/Analysis/{0}.csv'.format(node_set),
+                                nodes=list(nodes.values()), name="{0}".format(node_set))
 
-assign_recorders(node_lookup_id, non_storage_types, non_storage)
-assign_recorders(node_lookup_id, storage_types, storage)
-assign_recorders(link_lookup_id, link_types, pywr_links)
+# Numpy array recorder (to dataframe)
 
-# run model
+# def assign_recorders(lookup, resource_class, recorder, pywr_type):
+#     for resource_id in lookup:
+#         if lookup[resource_id]['type'] in resource_class:
+#             lookup[resource_id]['recorder'] = recorder(model, pywr_type[resource_id])
+#
+# assign_recorders(node_lookup_id, non_storage_types, NumpyArrayNodeRecorder, non_storage)
+# assign_recorders(link_lookup_id, link_types, NumpyArrayNodeRecorder, pywr_links)
+# assign_recorders(node_lookup_id, storage_types, NumpyArrayStorageRecorder, storage)
+
+# --------------------- RUN MODEL -----------------------------
 model.run()
+# -------------------- ORGANIZE RESULTS --------------------
 
-# -------------------- ORGANIZE RESULTS (WORK IN PROGRESS) --------------------
+# Numpy array to dataframe results
 
-# save results to dataframe by resource
-def get_results(lookup, resource_class):
-    dataframes = []
-    for resource_id in lookup:
-        if lookup[resource_id]['type'] in resource_class:
-            dataframe = lookup[resource_id]['recorder'].to_dataframe()
-            dataframe.columns = [lookup[resource_id]['name']]
-            dataframes.append(dataframe)
-    return pd.concat(dataframes, axis=1)
-
-delivery_results = get_results(node_lookup_id, 'Urban Demand')
-storage_results = get_results(node_lookup_id, storage_types)
-outflow_results = get_results(node_lookup_id, 'Outflow Node')
-supply_results = get_results(node_lookup_id, input_types)
-link_results = get_results(link_lookup_id, link_types)
-
-storage_volumes = {}
-for node in storage:
-    storage_volumes[storage[node].name] = storage[node].max_volume
-
-observed = []
-for node, attributes in node_lookup_id.items():
-    for attribute in attributes['attributes']:
-        if attribute.get('data_type') == 'Observed Delivery':
-            obsdel = pd.DataFrame(attribute['data'])
-            obsdel.columns = [node_lookup_id[node]['name']]
-            observed.append(obsdel)
-observed = pd.concat(observed, axis=1)
+# def get_results(lookup, resource_class):
+#     dataframes = []
+#     for resource_id in lookup:
+#         if lookup[resource_id]['type'] in resource_class:
+#             dataframe = lookup[resource_id]['recorder'].to_dataframe()
+#             dataframe.columns = [lookup[resource_id]['name']]
+#             dataframes.append(dataframe)
+#     return pd.concat(dataframes, axis=1)
+#
+# delivery_results = get_results(node_lookup_id, 'Urban Demand')
+# storage_results = get_results(node_lookup_id, storage_types)
+# outflow_results = get_results(node_lookup_id, 'Outflow Node')
+# supply_results = get_results(node_lookup_id, input_types)
+# link_results = get_results(link_lookup_id, link_types)
+#
+# storage_volumes = {}
+# for node in storage:
+#     storage_volumes[storage[node].name] = storage[node].max_volume
+#
+# observed = []
+# for node, attributes in node_lookup_id.items():
+#     for attribute in attributes['attributes']:
+#         if attribute.get('data_type') == 'Observed Delivery':
+#             obsdel = pd.DataFrame(attribute['data'])
+#             obsdel.columns = [node_lookup_id[node]['name']]
+#             observed.append(obsdel)
+# observed = pd.concat(observed, axis=1)
