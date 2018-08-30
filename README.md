@@ -21,7 +21,8 @@ Pywr requires the node classification for a link in order to alter various const
 
 ![link figure](figures/link figure.png)
 
-### Important Considerations
+### Notes
 *	All possible routes within the OA network must begin with an Input node and end with an Output node
 *	Any rogue nodes (i.e. a node without any connections) from the OA network are automatically removed from the Pywr routine
 *	Nodes of the “Storage” class must have their connections to and from other nodes explicitly defined (as accounted for in the code)
+* See dictionary of exceptions [documentation](https://github.com/pywr/pywr/wiki/Dictionary-of-exceptions) for model debugging

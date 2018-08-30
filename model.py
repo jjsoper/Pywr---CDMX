@@ -356,4 +356,4 @@ model.run()
 #             obsdel = pd.DataFrame(attribute['data'])
 #             obsdel.columns = [node_lookup_id[node]['name']]
 #             observed.append(obsdel)
-# observed = pd.concat(observed, axis=1)
+observed = pd.concat(observed, axis=1)
