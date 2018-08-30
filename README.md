@@ -19,7 +19,7 @@ Pywr nodes within the CDMX model are subdivided into either an Input, Output, St
 
 Pywr requires the node classification for a link in order to alter various constraints. This conceptual difference is illustrated below:
 
-![link figure](/figures/link figure.png)
+![link figure](figures/link figure.png)
 
 ### Notes
 *	All possible routes within the OA network must begin with an Input node and end with an Output node
