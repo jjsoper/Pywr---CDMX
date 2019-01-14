@@ -15,8 +15,8 @@ import xlrd
 # ----------------- PROJECT LEVEL ROUTINES -----------------------
 
 # Load data
-with open('Corrected Shape.json') as f:
-    data = json.load(f)
+with open('Corrected Shape.json') as network_data:
+    data = json.load(network_data)
     nodes_list = data["network"]["nodes"]
     links_list = data["network"]["links"]
     template = data['template']
@@ -39,6 +39,9 @@ misc_types = ['Lifting Station', 'Pumping Plant', 'Treatment Plant', 'Diversion 
 sheet = xlrd.open_workbook('Cutzamala Supply.xlsx')
 sheet = sheet.sheet_by_index(0)
 cutzamala_supply = sheet.col_values(0)
+
+# Define save folder to store results (used for CSVRecorders)
+results_folder = 'C:/Users/Josh Soper/Documents/Mexico/Summer 2018/Analysis'
 
 # ----------------- CREATE MODEL -----------------------
 
@@ -151,7 +154,7 @@ pywr_components = {"inputs": non_storage_inputs, "outputs": non_storage_outputs,
                     "storage": storage, "links": pywr_links}
 
 # create network connections
-# must assign connection slots for storage
+# must assign connection slots for storage, from_slot removes water from system, to_slot adds water to system
 
 for link_id, link_trait in link_lookup_id.items():
     up_node = link_trait['node_1_id']
@@ -197,7 +200,7 @@ def select_scenario(option, scenario):
 scenario_data = select_scenario(option, scenario)
 
 # fill in relevant data based on resource lookup dictionary and resource id
-# operates under assumption that all timeseries data comes in as cms / need to convert to Mcm/day
+# operates under assumption that all timeseries data comes in as cms and need to convert to Mcm/day
 resource_errors = []
 def populate_data(lookup, resource):
     for att in lookup[resource]['attributes']:
@@ -306,11 +309,13 @@ for node in node_lookup_id:
         if non_storage[node].max_flow == float('inf'):
             non_storage[node].max_flow = 0
 
-
 # -------------------- ASSIGN RECORDERS --------------------
 # CSV recorders: nodes= must be an iterable, name= used to create multiple csv recorders
+# Storage CSV displays change in storage at each timestep, to record storage volume per timestep,
+#       use NumpyArrayStorageRecorder or add post-processing routine for csv model outputs
+
 for node_set, nodes in pywr_components.items():
-    CSVRecorder(model, csvfile='C:/Users/Josh Soper/Documents/Mexico/Summer 2018/Analysis/{0}.csv'.format(node_set),
+    CSVRecorder(model, csvfile='{}/{}.csv'.format(results_folder, node_set),
                                 nodes=list(nodes.values()), name="{0}".format(node_set))
 
 # Numpy array recorder (to dataframe)
@@ -329,7 +334,6 @@ model.run()
 # -------------------- ORGANIZE RESULTS --------------------
 
 # Numpy array to dataframe results
-
 # def get_results(lookup, resource_class):
 #     dataframes = []
 #     for resource_id in lookup:
